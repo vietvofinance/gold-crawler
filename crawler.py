@@ -19,8 +19,25 @@ def parse_price(data):
     return int(data) if data and data != '0' else None
 
 def crawl():
-    res = requests.get("http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v")
-    root = ET.fromstring(res.text)
+    print("🔍 Crawling from BTMC API...")
+    url = "http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v"
+    try:
+        res = requests.get(url, timeout=10)
+        if res.status_code != 200:
+            print(f"❌ HTTP Error: {res.status_code}")
+            print("Response:", res.text[:300])
+            return []
+    except Exception as e:
+        print(f"❌ Request failed: {e}")
+        return []
+
+    try:
+        root = ET.fromstring(res.text)
+    except ET.ParseError as e:
+        print("❌ XML Parse Error:", e)
+        print("Raw response:", res.text[:300])
+        return []
+
     rows = []
     for child in root.findall("Data"):
         attrs = child.attrib
@@ -35,10 +52,12 @@ def crawl():
                     prefix = "GVNL"
                 else:
                     continue
+
                 buy = parse_price(attrs.get(f"pb_{k[-1]}"))
                 sell = parse_price(attrs.get(f"ps_{k[-1]}"))
                 time_str = attrs.get(f"d_{k[-1]}")
                 timestamp = datetime.strptime(time_str, "%d/%m/%Y %H:%M")
+
                 row = {
                     "id": generate_id(prefix),
                     "type": prefix.replace("G", ""),
@@ -49,29 +68,39 @@ def crawl():
                     "timestamp": timestamp
                 }
                 rows.append(row)
+
+    print(f"✅ Parsed {len(rows)} rows.")
     return rows
 
 def insert_data(rows):
-    conn = psycopg2.connect(
-        dbname=SUPABASE_DB,
-        user=SUPABASE_USER,
-        password=SUPABASE_PASSWORD,
-        host=SUPABASE_HOST,
-        port=SUPABASE_PORT
-    )
-    cur = conn.cursor()
-    for row in rows:
-        cur.execute("""
-            INSERT INTO gold_price (id, type, buy_price, sell_price, unit, source, timestamp)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO NOTHING
-        """, (
-            row["id"], row["type"], row["buy_price"], row["sell_price"],
-            row["unit"], row["source"], row["timestamp"]
-        ))
-    conn.commit()
-    cur.close()
-    conn.close()
+    if not rows:
+        print("⚠️ No data to insert.")
+        return
+
+    try:
+        conn = psycopg2.connect(
+            dbname=SUPABASE_DB,
+            user=SUPABASE_USER,
+            password=SUPABASE_PASSWORD,
+            host=SUPABASE_HOST,
+            port=SUPABASE_PORT
+        )
+        cur = conn.cursor()
+        for row in rows:
+            cur.execute("""
+                INSERT INTO gold_price (id, type, buy_price, sell_price, unit, source, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+            """, (
+                row["id"], row["type"], row["buy_price"], row["sell_price"],
+                row["unit"], row["source"], row["timestamp"]
+            ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ Inserted data into Supabase.")
+    except Exception as e:
+        print(f"❌ Database insert error: {e}")
 
 if __name__ == "__main__":
     data = crawl()

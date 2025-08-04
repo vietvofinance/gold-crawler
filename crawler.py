@@ -104,4 +104,8 @@ def insert_data(rows):
 
 if __name__ == "__main__":
     data = crawl()
+    print(f"🐍 Số dòng crawl được: {len(data)}")
+    for row in data:
+        print("➡️ ", row)
     insert_data(data)
+

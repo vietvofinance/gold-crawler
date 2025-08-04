@@ -1,4 +1,4 @@
-name: BTMC Gold Crawler
+name: Gold Price Crawler
 
 on:
   schedule:

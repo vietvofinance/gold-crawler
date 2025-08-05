@@ -1,9 +1,9 @@
 import requests
-import json
 import os
 from datetime import datetime
 from supabase import create_client, Client
 
+# Lấy biến môi trường từ GitHub Secrets hoặc local .env
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -32,13 +32,12 @@ def crawl():
     data_list = data.get("DataList", {}).get("Data", [])
 
     for item in data_list:
-        attrs = item["@row"]
         for i in range(1, 10):
             name = item.get(f"@n_{i}")
             if not name:
                 continue
-            name_upper = name.upper()
 
+            name_upper = name.upper()
             if "SJC" in name_upper:
                 prefix = "GSJC"
             elif "BTMC" in name_upper:
@@ -61,7 +60,7 @@ def crawl():
                 "type": prefix.replace("G", ""),
                 "buy_price": buy,
                 "sell_price": sell,
-                "unit": "1 lượng",
+                "unit": "10 chỉ",
                 "source": "btmc.vn",
                 "timestamp": timestamp.isoformat()
             }
@@ -78,7 +77,7 @@ def insert_data(rows):
     try:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
         for row in rows:
-            res = supabase.table("gold_price").insert(row).execute()
+            res = supabase.table("gold_price").insert(row, upsert=False).execute()
             if res.status_code >= 400:
                 print("❌ Insert error:", res.json())
             else:
@@ -90,5 +89,5 @@ if __name__ == "__main__":
     data = crawl()
     print(f"🐍 Số dòng crawl được: {len(data)}")
     for row in data:
-        print("➡️ ", row)
+        print("➡️", row)
     insert_data(data)

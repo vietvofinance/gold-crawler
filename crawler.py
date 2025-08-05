@@ -77,13 +77,13 @@ def insert_data(rows):
     try:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
         for row in rows:
-            res = supabase.table("gold_price").insert(row, upsert=False).execute()
-            if res.error:
-                print(f"❌ Insert error for {row['id']}: {res.error.message}")
-            else:
+            try:
+                res = supabase.table("gold_price").insert(row, upsert=False).execute()
                 print(f"✅ Inserted: {row['id']}")
+            except Exception as insert_error:
+                print(f"❌ Insert error for {row['id']}: {insert_error}")
     except Exception as e:
-        print(f"❌ Supabase insert error (connection/config): {e}")
+        print(f"❌ Supabase connection/config error: {e}")
 
 if __name__ == "__main__":
     data = crawl()

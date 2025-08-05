@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 
-# Lấy biến môi trường từ GitHub Secrets hoặc local .env
+# Lấy biến môi trường từ GitHub Actions hoặc local .env
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -14,6 +14,12 @@ def generate_id(prefix):
 def parse_price(data):
     try:
         return int(data) if data and data != "0" else None
+    except:
+        return None
+
+def parse_datetime_safe(s):
+    try:
+        return datetime.strptime(s, "%d/%m/%Y %H:%M")
     except:
         return None
 
@@ -28,9 +34,25 @@ def crawl():
         print("Raw response:", res.text[:300])
         return []
 
-    rows = []
     data_list = data.get("DataList", {}).get("Data", [])
 
+    # Tìm timestamp mới nhất
+    all_timestamps = []
+    for item in data_list:
+        for i in range(1, 10):
+            ts = parse_datetime_safe(item.get(f"@d_{i}"))
+            if ts:
+                all_timestamps.append(ts)
+
+    if not all_timestamps:
+        print("⚠️ Không tìm thấy timestamp nào hợp lệ.")
+        return []
+
+    latest_ts = max(all_timestamps)
+    print(f"📌 Latest timestamp found in API: {latest_ts}")
+
+    # Lọc các dòng có timestamp == latest
+    rows = []
     for item in data_list:
         for i in range(1, 10):
             name = item.get(f"@n_{i}")
@@ -50,10 +72,10 @@ def crawl():
             buy = parse_price(item.get(f"@pb_{i}"))
             sell = parse_price(item.get(f"@ps_{i}"))
             time_str = item.get(f"@d_{i}")
-            try:
-                timestamp = datetime.strptime(time_str, "%d/%m/%Y %H:%M")
-            except:
-                timestamp = datetime.now()
+            timestamp = parse_datetime_safe(time_str)
+
+            if not timestamp or timestamp != latest_ts:
+                continue
 
             row = {
                 "id": generate_id(prefix),
@@ -66,7 +88,7 @@ def crawl():
             }
             rows.append(row)
 
-    print(f"✅ Parsed {len(rows)} rows.")
+    print(f"✅ Parsed {len(rows)} rows (latest only).")
     return rows
 
 def insert_data(rows):

@@ -2,25 +2,28 @@ name: Gold Price Crawler
 
 on:
   schedule:
-    - cron: '0 2,11 * * *'   # 9h và 18h VN = 2h & 11h UTC
-  workflow_dispatch:
+    - cron: '0 2,11 * * *'   # chạy lúc 9h & 18h Việt Nam (UTC+7)
+  workflow_dispatch:         # cho phép chạy thủ công
 
 jobs:
   run-crawler:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install supabase  # nếu chưa có trong requirements.txt
+
       - name: Run crawler
         env:
-          SUPABASE_DB: ${{ secrets.SUPABASE_DB }}
-          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
-          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
-          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python crawler.py
